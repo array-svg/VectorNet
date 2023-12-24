@@ -36,6 +36,7 @@ class HGNN(nn.Module):
     def __init__(self, in_channels, out_channels, num_subgraph_layers=3, num_global_graph_layer=1, subgraph_width=64, global_graph_width=64, traj_pred_mlp_width=64):
         super(HGNN, self).__init__()
         self.polyline_vec_shape = in_channels * (2 ** num_subgraph_layers)
+        print("self.polyline_vec_shape: ", self.polyline_vec_shape)
         self.subgraph = SubGraph(
             in_channels, num_subgraph_layers, subgraph_width)
         self.self_atten_layer = SelfAttentionLayer(
@@ -47,8 +48,12 @@ class HGNN(nn.Module):
         """
         args: 
             data (Data): [x, y, cluster, edge_index, valid_len]
-
         """
+
+        # type(data): torch_geometric.data.Data
+        # x: 用于存储每个节点的特征，形状是[num_nodes, num_node_features]
+        # y: 存储样本标签。如果是每个节点都有标签，那么形状是[num_nodes, *]；如果是整张图只有一个标签，那么形状是[1, *]；
+        # edge_index: 用于存储节点之间的边，形状是 [2, num_edges]（  使用稀疏的方式存储边关系（edge_index中边的存储方式，有两个list，第 1 个list是边的起始点，第 2 个list是边的目标节点））
         time_step_len = int(data.time_step_len[0])
         valid_lens = data.valid_len
         sub_graph_out = self.subgraph(data)

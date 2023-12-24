@@ -71,21 +71,30 @@ def get_nearby_lane_feature_ls(am, agent_df, obs_len, city_name, lane_radius, no
     returns:
         list of list of lane a segment feature, formatted in [left_lane, right_lane, is_traffic_control, is_intersection, lane_id]
     '''
-
+    # 道路特征列表
     lane_feature_ls = []
     if mode == 'nearby':
+        # 当前自车的位置
         query_x, query_y = agent_df[['X', 'Y']].values[obs_len-1]
+        # 以自车位置和城市为索引，获得半径范围内所有的道路编号，圆形
         nearby_lane_ids = am.get_lane_ids_in_xy_bbox(
             query_x, query_y, city_name, lane_radius)
 
         for lane_id in nearby_lane_ids:
+            # 某个车道是否具有交通控制措施的一个特定属性或字段。这可能包括了交通信号灯、标线、交叉口规划等信息
+            # true / false
             traffic_control = am.lane_has_traffic_control_measure(
                 lane_id, city_name)
+            # 描述车道是否位于交叉口内
             is_intersection = am.lane_is_in_intersection(lane_id, city_name)
-
+            
+            # 获得道路中心线, <class 'numpy.ndarray'> shape: n * 3
             centerlane = am.get_lane_segment_centerline(lane_id, city_name)
+            
             # normalize to last observed timestamp point of agent
+            # 将所有的车道中心线的坐标转换成为相对于当前自车的坐标
             centerlane[:, :2] -= norm_center
+            # 获得道路两边的线的坐标
             halluc_lane_1, halluc_lane_2 = get_halluc_lane(
                 centerlane, city_name)
 

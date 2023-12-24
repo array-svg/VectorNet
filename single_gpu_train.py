@@ -80,6 +80,7 @@ if __name__ == "__main__":
     # hyper parameters
 
     train_data = GraphDataset(TRAIN_DIR).shuffle()
+    # print("type(train_data): ", type(train_data))
     # val_data = GraphDataset(VAL_DIR)
     if small_dataset:
         train_loader = DataLoader(train_data[:1000], batch_size=batch_size, shuffle=True)
@@ -89,6 +90,7 @@ if __name__ == "__main__":
         # val_loader = DataLoader(val_data, batch_size=batch_size)
 
     model = HGNN(in_channels, out_channels).to(device)
+    # print(model)
     optimizer = optim.Adam(model.parameters(), lr=lr)
     scheduler = optim.lr_scheduler.StepLR(
         optimizer, step_size=decay_lr_every, gamma=decay_lr_factor)

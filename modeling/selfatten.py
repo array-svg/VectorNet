@@ -80,13 +80,9 @@ class SelfAttentionLayer(nn.Module):
     def forward(self, x, valid_len):
         # print(x.shape)
         # print(self.q_lin)
-        print("a line 55")
         query = self.q_lin(x)
         key = self.k_lin(x)
         value = self.v_lin(x)
-        print("a line 59")
         scores = torch.bmm(query, key.transpose(1, 2))
-        print("a line 61")
         attention_weights = masked_softmax(scores, valid_len)
-        print("a line 63")
         return torch.bmm(attention_weights, value)

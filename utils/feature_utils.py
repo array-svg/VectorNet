@@ -34,12 +34,11 @@ def compute_feature_for_one_seq(traj_df: pd.DataFrame, am: ArgoverseMap, obs_len
         norm_center np.ndarray: (2, )
     """
     # normalize timestamps
-    print("line 37")
     traj_df['TIMESTAMP'] -= np.min(traj_df['TIMESTAMP'].values)
-    print("line 38")
     seq_ts = np.unique(traj_df['TIMESTAMP'].values)
 
     seq_len = seq_ts.shape[0]
+    # 城市名
     city_name = traj_df['CITY_NAME'].iloc[0]
     agent_df = None
     agent_x_end, agent_y_end, start_x, start_y, query_x, query_y, norm_center = [
@@ -47,19 +46,26 @@ def compute_feature_for_one_seq(traj_df: pd.DataFrame, am: ArgoverseMap, obs_len
     # agent traj & its start/end point
     for obj_type, remain_df in traj_df.groupby('OBJECT_TYPE'):
         if obj_type == 'AGENT':
+            # AGENT type对应的所有的数据
             agent_df = remain_df
+            # 自车轨迹起点
             start_x, start_y = agent_df[['X', 'Y']].values[0]
+            # 自车轨迹终点
             agent_x_end, agent_y_end = agent_df[['X', 'Y']].values[-1]
-            query_x, query_y = agent_df[['X', 'Y']].values[obs_len-1]
+            query_x, query_y = agent_df[['X', 'Y']].values[obs_len-1] # 预测点和训练点分割点坐标
+            # 自车位置
             norm_center = np.array([query_x, query_y])
             break
         else:
             raise ValueError(f"cannot find 'agent' object type")
 
+    # print("agent_df: ", agent_df)
     # prune points after "obs_len" timestamp
     # [FIXED] test set length is only `obs_len`
+    # 所有物体的历史轨迹
     traj_df = traj_df[traj_df['TIMESTAMP'] <=
                       agent_df['TIMESTAMP'].values[obs_len-1]]
+    # print("traj_df: ", traj_df)
 
     assert (np.unique(traj_df["TIMESTAMP"].values).shape[0]
             == obs_len), "Obs len mismatch"
@@ -68,17 +74,17 @@ def compute_feature_for_one_seq(traj_df: pd.DataFrame, am: ArgoverseMap, obs_len
     # FIXME: nearby or rect?
     # lane_feature_ls = get_nearby_lane_feature_ls(
     #     am, agent_df, obs_len, city_name, lane_radius, norm_center)
-    print("line 69")
     lane_feature_ls = get_nearby_lane_feature_ls(
         am, agent_df, obs_len, city_name, lane_radius, norm_center, mode=mode, query_bbox=query_bbox)
     # pdb.set_trace()
 
-    print("line 74")
     # search nearby moving objects from the last observed point of agent
+    # print("get_nearby_moving_obj_feature_ls")
     obj_feature_ls = get_nearby_moving_obj_feature_ls(
         agent_df, traj_df, obs_len, seq_ts, norm_center)
+    # print("len(obj_feature_ls): ", len(obj_feature_ls))
     # get agent features
-    print("line 79")
+
     agent_feature = get_agent_feature_ls(agent_df, obs_len, norm_center)
 
     # vis
@@ -106,8 +112,8 @@ def compute_feature_for_one_seq(traj_df: pd.DataFrame, am: ArgoverseMap, obs_len
 
 def trans_gt_offset_format(gt):
     """
-    >Our predicted trajectories are parameterized as per-stepcoordinate offsets, starting from the last observed location.We rotate the coordinate system based on the heading of the target vehicle at the last observed location.
-    
+    > Our predicted trajectories are parameterized as per-stepcoordinate offsets, starting from the last observed location.
+    We rotate the coordinate system based on the heading of the target vehicle at the last observed location.
     """
     assert gt.shape == (30, 2) or gt.shape == (0, 2), f"{gt.shape} is wrong"
 
@@ -115,7 +121,11 @@ def trans_gt_offset_format(gt):
     if gt.shape == (0, 2):
         return gt
 
+    # print("gt: ", gt)
+    # print("gt[0]: ", gt[0])
+    # print("gt[1:] - gt[:-1]: ", gt[1:] - gt[:-1])
     offset_gt = np.vstack((gt[0], gt[1:] - gt[:-1]))
+    # print("offset_gt: ", offset_gt)
     # import pdb
     # pdb.set_trace()
     assert (offset_gt.cumsum(axis=0) -
@@ -144,7 +154,6 @@ def encoding_features(agent_feature, obj_feature_ls, lane_feature_ls):
             lane_id2mask: Dict[int, int]
         )
         where obejct_type = {0 - others, 1 - agent}
-
     """
     polyline_id = 0
     traj_id2mask, lane_id2mask = {}, {}
@@ -156,15 +165,26 @@ def encoding_features(agent_feature, obj_feature_ls, lane_feature_ls):
     agent_len = agent_feature[0].shape[0]
     # print(agent_feature[0].shape, np.ones(
     # (agent_len, 1)).shape, agent_feature[2].shape, (np.ones((agent_len, 1)) * polyline_id).shape)
+    
+    # print("agent_feature[0]: ", agent_feature[0])
+    # print("np.ones((agent_len, 1)): ", np.ones((agent_len, 1)))
+    # print("agent_feature[2].reshape((-1, 1)): ", agent_feature[2].reshape((-1, 1)))
+    # print("np.ones((agent_len, 1)) * polyline_id: ", np.ones((agent_len, 1)) * polyline_id)
+    # (x_t, y_t, x_t+1, y_t+1, 1, t, polyline_id)
     agent_nd = np.hstack((agent_feature[0], np.ones(
         (agent_len, 1)), agent_feature[2].reshape((-1, 1)), np.ones((agent_len, 1)) * polyline_id))
+    # print("agent_nd: ", agent_nd)
     assert agent_nd.shape[1] == 7, "obj_traj feature dim 1 is not correct"
 
+    # print("traj_nd_before: ", traj_nd)
     traj_nd = np.vstack((traj_nd, agent_nd))
+    # print("traj_nd_after: ", traj_nd)
     traj_id2mask[polyline_id] = (pre_traj_len, traj_nd.shape[0])
+    # pre_traj_len ? 
     pre_traj_len = traj_nd.shape[0]
     polyline_id += 1
 
+    print()
     # encoding obj feature
     for obj_feature in obj_feature_ls:
         obj_len = obj_feature[0].shape[0]
@@ -176,11 +196,14 @@ def encoding_features(agent_feature, obj_feature_ls, lane_feature_ls):
         assert obj_nd.shape[1] == 7, "obj_traj feature dim 1 is not correct"
         traj_nd = np.vstack((traj_nd, obj_nd))
 
+        # pre_traj_len ? 是什么意思 
         traj_id2mask[polyline_id] = (pre_traj_len, traj_nd.shape[0])
         pre_traj_len = traj_nd.shape[0]
         polyline_id += 1
 
+    # print("traj_id2mask: ", traj_id2mask)
     # incodeing lane feature
+    # print("len(lane_feature_ls): ", len(lane_feature_ls))
     pre_lane_len = lane_nd.shape[0]
     for lane_feature in lane_feature_ls:
         l_lane_len = lane_feature[0].shape[0]
@@ -207,6 +230,9 @@ def encoding_features(agent_feature, obj_feature_ls, lane_feature_ls):
         assert _tmp_len_1 == _tmp_len_2, f"left, right lane vector length contradict"
         # lane_nd = np.vstack((lane_nd, l_lane_nd, r_lane_nd))
 
+    # print("lane_nd.shape: ", lane_nd.shape)
+    # print("lane_id2mask[polyline_id - 1]: ", lane_id2mask[polyline_id - 1])
+    # print("lane_id2mask: ", lane_id2mask)
     # FIXME: handling `nan` in lane_nd
     col_mean = np.nanmean(lane_nd, axis=0)
     if np.isnan(col_mean).any():
@@ -230,7 +256,11 @@ def encoding_features(agent_feature, obj_feature_ls, lane_feature_ls):
     # plt.show()
 
     # transform gt to offset_gt
+    # print("gt: ", gt)
+    # ? 这里的变换的意思是？
+    # 这里的offset_groundtruth被转换为计算每个groundtruth点相对于前一个点的偏移   
     offset_gt = trans_gt_offset_format(gt)
+    # print("offset_gt: ", offset_gt)
 
     # now the features are:
     # (xs, ys, xe, ye, obejct_type, timestamp(avg_for_start_end?),polyline_id) for object
@@ -239,17 +269,27 @@ def encoding_features(agent_feature, obj_feature_ls, lane_feature_ls):
     # change lanes feature to xs, ys, xe, ye, NULL, zs, ze, polyline_id)
     lane_nd = np.hstack(
         [lane_nd, np.zeros((lane_nd.shape[0], 1), dtype=lane_nd.dtype)])
+    # print("lane_nd: ", lane_nd)
+    # ? 对数据进行切片处理？为什么? 
     lane_nd = lane_nd[:, [0, 1, 3, 4, 7, 2, 5, 6]]
     # change object features to (xs, ys, xe, ye, timestamp, NULL, NULL, polyline_id)
     traj_nd = np.hstack(
         [traj_nd, np.zeros((traj_nd.shape[0], 2), dtype=traj_nd.dtype)])
     traj_nd = traj_nd[:, [0, 1, 2, 3, 5, 7, 8, 6]]
+    # print("traj_nd: ", traj_nd)
 
     # don't ignore the id
     polyline_features = np.vstack((traj_nd, lane_nd))
     data = [[polyline_features.astype(
         np.float32), offset_gt, traj_id2mask, lane_id2mask, traj_nd.shape[0], lane_nd.shape[0]]]
 
+    # data_test = pd.DataFrame(
+    #     data,
+    #     columns=["POLYLINE_FEATURES", "GT",
+    #              "TRAJ_ID_TO_MASK", "LANE_ID_TO_MASK", "TARJ_LEN", "LANE_LEN"]
+    # )
+    # data_test.to_csv('./data_test.csv', index=False)
+    # print("data_test.shape: ", data_test.shape)
     return pd.DataFrame(
         data,
         columns=["POLYLINE_FEATURES", "GT",

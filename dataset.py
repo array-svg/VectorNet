@@ -30,7 +30,6 @@ def get_fc_edge_index(num_nodes, start=0):
     return edge_index.astype(np.int64), num_nodes + start
 # %%
 
-
 class GraphData(Data):
     """
     override key `cluster` indicating which polyline_id is for the vector
@@ -46,7 +45,7 @@ class GraphData(Data):
 
 # %%
 
-
+# 数据完整存储与内存的数据集类
 class GraphDataset(InMemoryDataset):
     """
     dataset object similar to `torchvision` 
@@ -56,6 +55,7 @@ class GraphDataset(InMemoryDataset):
         super(GraphDataset, self).__init__(root, transform, pre_transform)
         self.data, self.slices = torch.load(self.processed_paths[0])
 
+        # self.process()
     @property
     def raw_file_names(self):
         return []
@@ -68,7 +68,7 @@ class GraphDataset(InMemoryDataset):
         pass
 
     def process(self):
-
+        # print("process line 72")
         def get_data_path_ls(dir_):
             return [os.path.join(dir_, data_path) for data_path in os.listdir(dir_)]
         
@@ -78,6 +78,7 @@ class GraphDataset(InMemoryDataset):
         valid_len_ls = []
         valid_len_ls = []
         data_ls = []
+        # print("line 82")
         for data_p in tqdm(data_path_ls):
             if not data_p.endswith('pkl'):
                 continue

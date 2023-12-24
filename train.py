@@ -80,9 +80,7 @@ if __name__ == "__main__":
     device = torch.device(f'cuda:{gpus[0]}' if torch.cuda.is_available() else 'cpu')
 
     # prepare dara
-    print("line 83")
     train_data = GraphDataset(TRAIN_DIR).shuffle()
-    print("line 85")
     # val_data = GraphDataset(VAL_DIR)
     if small_dataset:
         train_loader = DataListLoader(train_data[:1000], batch_size=batch_size, shuffle=True)

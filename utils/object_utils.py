@@ -129,6 +129,8 @@ def get_nearby_moving_obj_feature_ls(agent_df, traj_df, obs_len, seq_ts, norm_ce
         if remain_df['OBJECT_TYPE'].iloc[0] == 'AGENT':
             continue
 
+        # 如果对应的object存在的时间过短, 或者object被判定为静态障碍物，就跳过
+        # 这里卡得太死了，把所有的其他障碍物都排除了, 后续训练效果的时候必须考虑
         if len(remain_df) < EXIST_THRESHOLD or get_is_track_stationary(remain_df):
             continue
 
@@ -138,16 +140,23 @@ def get_nearby_moving_obj_feature_ls(agent_df, traj_df, obs_len, seq_ts, norm_ce
         #     xys = np.array(paded_nd[:, 3:5], dtype=np.float64)
         #     ts = np.array(paded_nd[:, 0], dtype=np.float64)  # FIXME: fix bug: not consider padding time_seq
         # else:
+        # 记录下来这个obj的轨迹
         xys = remain_df[['X', 'Y']].values
+        # 记录下来这个obj的时间戳
         ts = remain_df["TIMESTAMP"].values
 
+        # 最后一个轨迹点
         p1 = xys[-1]
+        # 如果对应的obj最后离自车距离过远，不考虑预测
         if np.linalg.norm(p0 - p1) > OBJ_RADIUS:
             continue
-
-        xys -= norm_center  # normalize to last observed timestamp point of agent
-        xys = np.hstack((xys[:-1], xys[1:]))
         
+        # 转变为相对自车的轨迹
+        xys -= norm_center  # normalize to last observed timestamp point of agent
+        # print("xys_before: ", xys)
+        xys = np.hstack((xys[:-1], xys[1:]))
+        # print("xys_after: ", xys)
+
         ts = (ts[:-1] + ts[1:]) / 2
         # if not xys.shape[0] == ts.shape[0]:
         #     from pdb import set_trace;set_trace()
